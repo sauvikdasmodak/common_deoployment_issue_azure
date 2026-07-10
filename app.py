@@ -359,7 +359,7 @@ with tab_input:
 
     if analyze_btn:
         if not api_key:
-            st.error(f"Please enter your {provider_name} API key.")
+            st.error(f"Please enter your {provider_name} API key in the **LLM Configuration** section.")
         elif not log_text.strip():
             st.error("Please provide log content before analyzing.")
         else:
