@@ -359,7 +359,7 @@ with tab_input:
 
     if analyze_btn:
         if not api_key:
-            st.error(f"Please enter your {provider_name} API key in the sidebar.")
+            st.error(f"Please enter your {provider_name} API key.")
         elif not log_text.strip():
             st.error("Please provide log content before analyzing.")
         else:
@@ -373,7 +373,7 @@ with tab_input:
                 except json.JSONDecodeError as e:
                     st.error(f"LLM returned malformed JSON. Try again or switch to a more capable model.\n\nDetail: {e}")
                 except (GroqAuthenticationError, OpenAIAuthenticationError):
-                    st.error(f"Invalid {provider_name} API key. Check your {api_env_var} in the sidebar.")
+                    st.error(f"Invalid {provider_name} API key. Check your {api_env_var} value and try again.")
                 except (GroqRateLimitError, OpenAIRateLimitError):
                     st.error(f"{provider_name} rate limit reached. Wait a moment and retry.")
                 except Exception as e:
