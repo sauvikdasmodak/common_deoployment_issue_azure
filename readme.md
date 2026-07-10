@@ -1,11 +1,11 @@
 # Azure Deployment Issue Analyzer
 
-This project is a Streamlit app that analyzes Azure deployment logs with a Groq LLM and returns structured JSON findings.
+This project is a Streamlit app that analyzes Azure deployment logs with a Groq or OpenAI LLM and returns structured JSON findings.
 
 ## What it does
 
 - Accepts logs by paste, file upload, or built-in sample scenarios
-- Sends logs to a selected Groq model for analysis
+- Sends logs to a selected Groq or OpenAI model for analysis
 - Detects and categorizes deployment issues (critical/warning/info/resolved)
 - Shows root cause, recommended fix, and relevant log snippets per issue
 - Provides overall recommendations and a deployment health score
@@ -14,7 +14,7 @@ This project is a Streamlit app that analyzes Azure deployment logs with a Groq 
 ## Requirements
 
 - Python 3.9+
-- A Groq API key
+- A Groq API key or OpenAI API key
 
 Install dependencies:
 
@@ -28,6 +28,8 @@ Create a `.env` file (or export env vars) with:
 
 ```env
 GROQ_API_KEY=your_groq_api_key
+# or
+OPENAI_API_KEY=your_openai_api_key
 ```
 
 You can copy from `.env.example`.

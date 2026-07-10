@@ -1,10 +1,14 @@
-import streamlit as st
-from groq import Groq, AuthenticationError, RateLimitError
-import os
 import json
+import os
 import re
 from datetime import datetime
+
+import streamlit as st
 from dotenv import load_dotenv
+from groq import AuthenticationError as GroqAuthenticationError
+from groq import Groq, RateLimitError as GroqRateLimitError
+from openai import AuthenticationError as OpenAIAuthenticationError
+from openai import OpenAI, RateLimitError as OpenAIRateLimitError
 
 load_dotenv()
 
@@ -96,6 +100,33 @@ AZURE_SERVICES = [
     "Azure Monitor / Log Analytics",
 ]
 
+LLM_PROVIDERS = {
+    "Groq": {
+        "env_var": "GROQ_API_KEY",
+        "placeholder": "gsk_...",
+        "models": [
+            "llama-3.3-70b-versatile",
+            "llama-3.1-70b-versatile",
+            "llama3-70b-8192",
+            "mixtral-8x7b-32768",
+            "gemma2-9b-it",
+            "llama-3.1-8b-instant",
+        ],
+        "default_model": os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+    },
+    "OpenAI": {
+        "env_var": "OPENAI_API_KEY",
+        "placeholder": "sk-...",
+        "models": [
+            "gpt-4.1",
+            "gpt-4.1-mini",
+            "gpt-4o",
+            "gpt-4o-mini",
+        ],
+        "default_model": os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
+    },
+}
+
 SYSTEM_PROMPT = """You are an expert Azure cloud engineer and DevOps specialist.
 Your task is to analyze Azure deployment error logs and identify all deployment issues.
 
@@ -132,11 +163,19 @@ Rules:
 """
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-def get_groq_client(api_key: str) -> Groq:
+def get_default_provider() -> str:
+    if os.getenv("OPENAI_API_KEY") and not os.getenv("GROQ_API_KEY"):
+        return "OpenAI"
+    return "Groq"
+
+
+def get_client(provider: str, api_key: str):
+    if provider == "OpenAI":
+        return OpenAI(api_key=api_key)
     return Groq(api_key=api_key)
 
 
-def analyze_logs(client: Groq, model: str, log_text: str, service_filter: str) -> dict:
+def analyze_logs(client, model: str, log_text: str, service_filter: str) -> dict:
     service_hint = ""
     if service_filter and service_filter != "All Azure Services":
         service_hint = f"\nFocus especially on issues related to: {service_filter}."
@@ -231,26 +270,30 @@ with st.sidebar:
     st.markdown("## ☁️ Azure Log Analyzer")
     st.markdown("---")
 
-    st.markdown("### 🔑 Groq Configuration")
+    st.markdown("### 🔑 LLM Configuration")
+
+    provider_name = st.selectbox(
+        "Provider",
+        list(LLM_PROVIDERS.keys()),
+        index=list(LLM_PROVIDERS.keys()).index(get_default_provider()),
+    )
+    provider_config = LLM_PROVIDERS[provider_name]
+    api_env_var = provider_config["env_var"]
+    available_models = provider_config["models"]
+    default_model = provider_config["default_model"]
+    default_model_index = available_models.index(default_model) if default_model in available_models else 0
 
     api_key = st.text_input(
-        "Groq API Key",
-        value=os.getenv("GROQ_API_KEY", ""),
+        f"{provider_name} API Key",
+        value=os.getenv(api_env_var, ""),
         type="password",
-        placeholder="gsk_...",
+        placeholder=provider_config["placeholder"],
     )
 
     model_name = st.selectbox(
         "Model",
-        [
-            "llama-3.3-70b-versatile",
-            "llama-3.1-70b-versatile",
-            "llama3-70b-8192",
-            "mixtral-8x7b-32768",
-            "gemma2-9b-it",
-            "llama-3.1-8b-instant",
-        ],
-        index=0,
+        available_models,
+        index=default_model_index,
     )
 
     st.markdown("---")
@@ -316,23 +359,23 @@ with tab_input:
 
     if analyze_btn:
         if not api_key:
-            st.error("Please enter your OpenAI / Azure OpenAI API key in the sidebar.")
+            st.error(f"Please enter your {provider_name} API key in the **LLM Configuration** section.")
         elif not log_text.strip():
             st.error("Please provide log content before analyzing.")
         else:
-            with st.spinner("Sending logs to Groq for analysis…"):
+            with st.spinner(f"Sending logs to {provider_name} for analysis…"):
                 try:
-                    client = get_groq_client(api_key=api_key)
+                    client = get_client(provider_name, api_key=api_key)
                     result = analyze_logs(client, model_name, log_text, service_filter)
                     st.session_state["analysis"] = result
                     st.session_state["analyzed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     st.success("Analysis complete! Switch to the **Analysis Results** tab.")
                 except json.JSONDecodeError as e:
                     st.error(f"LLM returned malformed JSON. Try again or switch to a more capable model.\n\nDetail: {e}")
-                except AuthenticationError:
-                    st.error("Invalid Groq API key. Check your GROQ_API_KEY in the sidebar.")
-                except RateLimitError:
-                    st.error("Groq rate limit reached. Wait a moment and retry.")
+                except (GroqAuthenticationError, OpenAIAuthenticationError):
+                    st.error(f"Invalid {provider_name} API key. Check your {api_env_var} value and try again.")
+                except (GroqRateLimitError, OpenAIRateLimitError):
+                    st.error(f"{provider_name} rate limit reached. Wait a moment and retry.")
                 except Exception as e:
                     st.error(f"Error during analysis: {e}")
 
